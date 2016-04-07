@@ -7,7 +7,7 @@ class Message implements MessageInterface
     private $id;
     private $boundary;
     private $altBoundary;
-    private $exceptions = [];
+    public $exceptions = [];
 
     private $to = [];
     private $from = [];
@@ -222,6 +222,9 @@ class Message implements MessageInterface
         if (!is_null($name) && !is_string($name)) {
             throw new \InvalidArgumentException('Name must be a string.');
         }
+        if (!self::validationEmail($address)) {
+            $this->exceptions[] = 'Email address is not valid: ' . $address;
+        }
 
         $address = strtolower(trim($address));
         $name = trim(preg_replace('/[\r\n]+/', '', $name));
@@ -243,6 +246,10 @@ class Message implements MessageInterface
      */
     public function from($address, $name = null)
     {
+        if (!self::validationEmail($address)) {
+            $this->exceptions[] = 'Email address is not valid: ' . $address;
+        }
+
         $address = strtolower(trim($address));
         $name = trim(preg_replace('/[\r\n]+/', '', $name));
 
@@ -286,7 +293,7 @@ class Message implements MessageInterface
             $options['name'] = $filename;
         }
         if (!isset($options['mime_type']) || $options['mime_type'] == '') {
-            $options['mime_type'] = (new \finfo)->file($file, FILEINFO_MIME);
+            $options['mime_type'] = @(new \finfo)->file($file, FILEINFO_MIME);
         }
 
         $this->attach[$file] = $options;
@@ -476,8 +483,14 @@ class Message implements MessageInterface
 
     public function getFile($file)
     {
-        $handle = fopen($file, 'rb');
-        $f_contents = fread($handle, filesize($file));
+        if (!is_file($file)) {
+            $this->exceptions[] = 'File does not exists.';
+
+            return null;
+        }
+
+        $handle = @fopen($file, 'rb');
+        $f_contents = @fread($handle, @filesize($file));
         $f_contents = chunk_split(base64_encode($f_contents));
         fclose($handle);
 

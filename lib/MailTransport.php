@@ -4,6 +4,7 @@ namespace pyatakss\sendmail;
 
 class MailTransport implements TransportInterface
 {
+    public $exceptions = [];
 
     /**
      * Send the given Message.
@@ -12,11 +13,13 @@ class MailTransport implements TransportInterface
      * The return value is the number of recipients who were accepted for delivery.
      *
      * @param MessageInterface $message
-     *
      * @return int
+     * @throws \Swift_TransportException
      */
     public function send(MessageInterface $message)
     {
+        array_merge_recursive($this->exceptions, $message->exceptions);
+
         $message->preSend('mail');
         $to = 'To: ' . $message->getToAsString() . Message::LINE_SEPARATOR;
         $subject = $message->getSubjectAsString();
@@ -24,13 +27,21 @@ class MailTransport implements TransportInterface
         $headers = $message->getHeaders();
 
         if ($message instanceof SwiftMessageAdapter) {
-            $recipiens = $this->sendViaSwift($message);
+            try {
+                $recipients = $this->sendViaSwift($message);
+            } catch(\Swift_TransportException $e) {
+                $this->exceptions[] =  $e;
+
+                return 0;
+            }
         } else {
-            mail($to, $subject, $body, $headers);
-            $recipiens = count(explode(',', $to));
+            if (!mail($to, $subject, $body, $headers)) {
+                $this->exceptions[] =  'Sending email through the mail() failed.';
+            }
+            $recipients = count(explode(',', $message->getToAsString()));
         }
 
-        return $recipiens;
+        return $recipients;
     }
 
     private function sendViaSwift(MessageInterface $message)

@@ -6,6 +6,7 @@ namespace pyatakss\sendmail;
 class SMTPTransport implements TransportInterface
 {
     private $smtp;
+    public $exceptions = [];
     protected $configuration;
 
     public function __construct($configuration = null)
@@ -25,6 +26,8 @@ class SMTPTransport implements TransportInterface
      */
     public function send(MessageInterface $message)
     {
+        array_merge_recursive($this->exceptions, $message->exceptions);
+
         if ($message instanceof SwiftMessageAdapter) {
             $recipiens = $this->sendViaSwift($message);
         } else {
@@ -34,6 +37,10 @@ class SMTPTransport implements TransportInterface
         return $recipiens;
     }
 
+    /**
+     * @param MessageInterface $message
+     * @return mixed
+     */
     private function sendViaSwift(MessageInterface $message)
     {
         $transport = \Swift_SmtpTransport::newInstance($this->configuration['host'], $this->configuration['port'])
@@ -44,10 +51,24 @@ class SMTPTransport implements TransportInterface
         return $mailer->send($message->swiftMessage);
     }
 
+    /**
+     * @param MessageInterface $message
+     * @return int
+     */
     private function sendViaSockets(MessageInterface $message)
     {
+        if (!array_key_exists('host', $this->configuration) || !array_key_exists('port', $this->configuration) || !array_key_exists('username', $this->configuration) || !array_key_exists('password', $this->configuration)) {
+            $this->exceptions[] = 'Configuration failed';
+
+            return 0;
+        }
+
         $message->preSend('smtp');
         $to = $message->getToAsString();
+        foreach ($message->getFrom() as $address => $name) {
+            $from_email = $address;
+            $from_name = $name;
+        }
         $subject = $message->getSubjectAsString();
         $body = $message->getMessage();
         $headers = $message->getHeaders();
@@ -57,10 +78,12 @@ class SMTPTransport implements TransportInterface
         $user = $this->configuration['username'];
         $pass = $this->configuration['password'];
 
-        if (!($socket = fsockopen($smtp_host, $smtp_port, $errno, $errstr, 15))) {
-            echo "Error connecting to '$smtp_host' ($errno) ($errstr)" . PHP_EOL;
+        $from_email = (isset($from_email) && !empty($from_email)) ? $from_email : $user;
 
-            return false;
+        if (!($socket = fsockopen($smtp_host, $smtp_port, $errno, $errstr, 15))) {
+           $this->exceptions[] = "Error connecting to '$smtp_host' ($errno) ($errstr)";
+
+            return 0;
         }
 
         $this->serverParse($socket, '220');
@@ -77,7 +100,7 @@ class SMTPTransport implements TransportInterface
         fwrite($socket, base64_encode($pass) . Message::LINE_SEPARATOR);
         $this->serverParse($socket, '235', __LINE__);
 
-        fwrite($socket, 'MAIL FROM: <' . $user . '>' . Message::LINE_SEPARATOR);
+        fwrite($socket, 'MAIL FROM: <' . $from_email . '>' . Message::LINE_SEPARATOR);
         $this->serverParse($socket, '250', __LINE__);
 
         foreach ($message->getTo() as $email => $name) {
@@ -102,23 +125,31 @@ class SMTPTransport implements TransportInterface
         return count(explode(',', $to));
     }
 
-    //Functin to Processes Server Response Codes
+    /**
+     * @param $socket
+     * @param $expected_response
+     * @param null $line
+     * @return bool
+     */
     private function serverParse($socket, $expected_response, $line = null)
     {
         $server_response = '';
         while (substr($server_response, 3, 1) != ' ') {
             if (!($server_response = fgets($socket, 256))) {
-                echo 'Error while fetching server response codes. ', __FILE__, ' ', $line, PHP_EOL;
+                $this->exceptions[] =  'Error while fetching server response codes in ' .  __FILE__ . ' ' . $line;
             }
         }
 
         if (!(substr($server_response, 0, 3) == $expected_response)) {
-            echo 'ERROR --> "' . $server_response . '"', __FILE__, ' ', $line, PHP_EOL;
+            $this->exceptions[] = $server_response . ' in ' .  __FILE__ . ' ' . $line;
 
-            return false;
+            return 0;
         }
     }
 
+    /**
+     *
+     */
     public function beforeSend()
     {
         $socket = fsockopen("ssl://smtp.gmail.com", 465, $errno, $errstr, 10);
