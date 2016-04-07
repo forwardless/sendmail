@@ -177,8 +177,7 @@ class Message implements MessageInterface
             $str .= "--{$this->boundary}" . self::LINE_SEPARATOR;
             $str .= "Content-Type: {$options['mime_type']}; name=\"{$options['name']}\"" . self::LINE_SEPARATOR;
             $str .= "Content-Disposition: attachment; filename={$options['filename']}" . self::LINE_SEPARATOR;
-            $str .= "Content-Transfer-Encoding: base64" . self::LINE_SEPARATOR;
-            $str .= self::LINE_SEPARATOR;
+            $str .= "Content-Transfer-Encoding: base64" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
             $str .= chunk_split(base64_encode($file)) . self::LINE_SEPARATOR;
         }
 
@@ -453,7 +452,7 @@ class Message implements MessageInterface
 
             $this->message .= "--{$this->altBoundary}" . self::LINE_SEPARATOR;
             $this->message .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
-//            $this->message .= "Content-Transfer-Encoding: 8bit" . self::LINE_SEPARATOR;
+            
             $this->message .= $this->getBodyAsString() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
             $this->message .= "--{$this->altBoundary}--" . self::LINE_SEPARATOR;
