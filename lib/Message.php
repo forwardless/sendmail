@@ -452,7 +452,7 @@ class Message implements MessageInterface
 
             $this->message .= "--{$this->altBoundary}" . self::LINE_SEPARATOR;
             $this->message .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
-            
+
             $this->message .= $this->getBodyAsString() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
             $this->message .= "--{$this->altBoundary}--" . self::LINE_SEPARATOR;
