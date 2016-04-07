@@ -435,6 +435,7 @@ class Message implements MessageInterface
     public function preSend($mailer)
     {
         $this->headers = '';
+        $this->message = '';
         $this->headers .= $this->getIdAsString();
         if ($mailer === 'smtp') {
             $this->headers .= 'From: ' . $this->getFromForSmtp() . self::LINE_SEPARATOR;
