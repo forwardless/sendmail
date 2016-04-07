@@ -1,0 +1,21 @@
+{
+    "name": "pyataks/sendmail",
+    "description": "Send messages for the different ways.",
+    "license" : "BSD",
+    "homepage": "https://github.com/pyataks/sendmail",
+    "authors": [
+        {
+            "name": "pyatak_ss",
+            "email": "pyatak_ss@groupbwt.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "pyatakss\\sendmail\\": "lib"
+        }
+    },
+    "require": {
+        "mandrill/mandrill": "*",
+        "swiftmailer/swiftmailer": "*"
+    }
+}
