@@ -48,7 +48,6 @@ class SMTPTransport implements TransportInterface
     {
         $message->preSend('smtp');
         $to = $message->getToAsString();
-        $from = $message->getFromAsString();
         $subject = $message->getSubjectAsString();
         $body = $message->getMessage();
         $headers = $message->getHeaders();
