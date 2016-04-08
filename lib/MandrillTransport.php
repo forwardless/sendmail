@@ -23,7 +23,7 @@ class MandrillTransport implements TransportInterface
      *
      * @param MessageInterface $message
      * @return int
-     * @throws Mandrill_Error
+     * @throws \Mandrill_Error
      */
     public function send(MessageInterface $message)
     {
@@ -38,14 +38,15 @@ class MandrillTransport implements TransportInterface
             $to[] = $address;
         }
         if (!isset($to)) {
-            $to = ['example@example.com'];
+            ExceptionHandler::collect(__CLASS__, 'Cannot send message without a recipient', __FILE__, __LINE__);
         }
 
-        $from_email = 'pyatak_ss@groupbwt.com';
-        $from_name = '';
         foreach ($message->getFrom() as $address => $name) {
             $from_email = $address;
-            $from_name = "=?UTF-8?B?" . $name . '?=';
+            $from_name = ($name) ? "=?UTF-8?B?" . $name . '?=' : '';
+        }
+        if (!isset($from_email)) {
+            ExceptionHandler::collect(__CLASS__, 'Cannot send message without a sender', __FILE__, __LINE__);
         }
 
         try {
@@ -56,83 +57,9 @@ class MandrillTransport implements TransportInterface
             $return_path_domain = null;
             $result = $this->mandrill->messages->sendRaw($raw_message, $from_email, $from_name, $to, $async, $ip_pool, $send_at, $return_path_domain);
             print_r($result);
-        } catch (Mandrill_Error $e) {
-            echo 'A mandrill error occurred: ' . get_class($e) . ' - ' . $e->getMessage();
+        } catch (\Mandrill_Error $e) {
+            ExceptionHandler::collect(__CLASS__, 'A mandrill error occurred: ' . get_class($e) . ' - ' . $e->getMessage(), __FILE__, __LINE__);
 
-            throw $e;
-        }
-
-        return count($to);
-    }
-
-    private function sendViaMandrill(MessageInterface $message)
-    {
-        $message->preSend('mandrill');
-        $to = [];
-        $subject = $message->getSubjectAsString();
-        $body = $message->getMessage();
-        $headers = $message->getHeaders();
-
-        foreach ($message->getTo() as $address => $name) {
-            $to[] = [
-                'email' => $address,
-                'name' => $name,
-                'type' => 'to',
-            ];
-        }
-        $from_email = 'pyatak_ss@groupbwt.com';
-        $from_name = '';
-        foreach ($message->getFrom() as $address => $name) {
-            $from_email = $address;
-            $from_name = "=?UTF-8?B?" . $name . '?=';
-        }
-
-        $attach = [];
-        foreach ($message->getAttach() as $file => $options) {
-            $attach[] = [
-                'type' => $options['mime_type'],
-                'name' => $options['name'],
-                'content' => $message->getFile($file),
-            ];
-        }
-
-        try {
-            $messageMandrill = [
-                'html' => $body,
-                'text' => 'Example text content',
-                'subject' => $subject,
-                'from_email' => $from_email,
-                'from_name' => $from_name,
-                'to' => [$to],
-                'headers' => [$headers],
-                'important' => false,
-                'track_opens' => null,
-                'track_clicks' => null,
-                'auto_text' => null,
-                'auto_html' => null,
-                'inline_css' => null,
-                'url_strip_qs' => null,
-                'preserve_recipients' => null,
-                'view_content_link' => null,
-                'bcc_address' => '',
-                'tracking_domain' => null,
-                'signing_domain' => null,
-                'return_path_domain' => null,
-                'merge' => false,
-                'tags' => ['test-message'],
-                'google_analytics_domains' => ['example.com'],
-                'google_analytics_campaign' => 'message.from_email@example.com',
-                'metadata' => [],
-                'attachments' => [$attach],
-                'images' => null,
-            ];
-            $async = false;
-            $ip_pool = 'Main Pool';
-            $send_at = date(DATE_RFC2822);
-            $result = $this->mandrill->messages->send($messageMandrill, $async, $ip_pool, $send_at);
-            print_r($result);
-        } catch (Mandrill_Error $e) {
-            echo 'A mandrill error occurred: ' . get_class($e) . ' - ' . $e->getMessage();
             throw $e;
         }
 
@@ -150,7 +77,7 @@ class MandrillTransport implements TransportInterface
         try {
             $result = $this->mandrill->messages->info($id);
             print_r($result);
-        } catch (Mandrill_Error $e) {
+        } catch (\Mandrill_Error $e) {
             echo 'A mandrill error occurred: ' . get_class($e) . ' - ' . $e->getMessage();
             throw $e;
         }

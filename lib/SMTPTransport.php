@@ -5,8 +5,6 @@ namespace pyatakss\sendmail;
 
 class SMTPTransport implements TransportInterface
 {
-    private $smtp;
-    public $exceptions = [];
     protected $configuration;
 
     public function __construct($configuration = null)
@@ -26,8 +24,6 @@ class SMTPTransport implements TransportInterface
      */
     public function send(MessageInterface $message)
     {
-        array_merge_recursive($this->exceptions, $message->exceptions);
-
         if ($message instanceof SwiftMessageAdapter) {
             $recipiens = $this->sendViaSwift($message);
         } else {
@@ -58,7 +54,7 @@ class SMTPTransport implements TransportInterface
     private function sendViaSockets(MessageInterface $message)
     {
         if (!array_key_exists('host', $this->configuration) || !array_key_exists('port', $this->configuration) || !array_key_exists('username', $this->configuration) || !array_key_exists('password', $this->configuration)) {
-            $this->exceptions[] = 'Configuration failed';
+            ExceptionHandler::collect(__CLASS__, 'Configuration failed', __FILE__, __LINE__);
 
             return 0;
         }
@@ -81,7 +77,7 @@ class SMTPTransport implements TransportInterface
         $from_email = (isset($from_email) && !empty($from_email)) ? $from_email : $user;
 
         if (!($socket = fsockopen($smtp_host, $smtp_port, $errno, $errstr, 15))) {
-           $this->exceptions[] = "Error connecting to '$smtp_host' ($errno) ($errstr)";
+            ExceptionHandler::collect(__CLASS__, "Error connecting to '$smtp_host' ($errno) ($errstr)", __FILE__, __LINE__);
 
             return 0;
         }
@@ -136,12 +132,12 @@ class SMTPTransport implements TransportInterface
         $server_response = '';
         while (substr($server_response, 3, 1) != ' ') {
             if (!($server_response = fgets($socket, 256))) {
-                $this->exceptions[] =  'Error while fetching server response codes in ' .  __FILE__ . ' ' . $line;
+                ExceptionHandler::collect(__CLASS__, 'Error while fetching server response codes', __FILE__, __LINE__);
             }
         }
 
         if (!(substr($server_response, 0, 3) == $expected_response)) {
-            $this->exceptions[] = $server_response . ' in ' .  __FILE__ . ' ' . $line;
+            ExceptionHandler::collect(__CLASS__, $server_response, __FILE__, __LINE__);
 
             return 0;
         }

@@ -7,11 +7,10 @@ class Message implements MessageInterface
     private $id;
     private $boundary;
     private $altBoundary;
-    public $exceptions = [];
 
     private $to = [];
     private $from = [];
-    private $subject = [];
+    private $subject;
     private $body;
     private $contentType;
     private $charset;
@@ -59,8 +58,8 @@ class Message implements MessageInterface
      */
     public function getToAsString()
     {
-        if (empty($this->to)) {
-            $this->exceptions[] = 'Recipient address does not specified.';
+        if (!($this instanceof SwiftMessageAdapter) && empty($this->to)) {
+            ExceptionHandler::collect(__CLASS__, 'Recipient address does not specified', __FILE__, __LINE__);
 
             return false;
         }
@@ -87,8 +86,8 @@ class Message implements MessageInterface
 
     public function getFromAsString()
     {
-        if (empty($this->from)) {
-            $this->exceptions[] = 'Sender address does not specified.';
+        if (!($this instanceof SwiftMessageAdapter) && empty($this->from)) {
+            ExceptionHandler::collect(__CLASS__, 'Sender address does not specified', __FILE__, __LINE__);
 
             return false;
         }
@@ -107,8 +106,8 @@ class Message implements MessageInterface
 
     public function getFromForSmtp()
     {
-        if (empty($this->from)) {
-            $this->exceptions[] = 'Sender address does not specified.';
+        if (!($this instanceof SwiftMessageAdapter) && empty($this->from)) {
+            ExceptionHandler::collect(__CLASS__, 'Sender address does not specified', __FILE__, __LINE__);
 
             return false;
         }
@@ -135,12 +134,6 @@ class Message implements MessageInterface
 
     public function getSubjectAsString()
     {
-        if (empty($this->subject)) {
-            $this->exceptions[] = 'Subject does not specified.';
-
-            return false;
-        }
-
         $subject = '=?UTF-8?B?' . base64_encode($this->subject) . '?=';
 
         return $subject;
@@ -217,13 +210,13 @@ class Message implements MessageInterface
     public function to($address, $name = null)
     {
         if (!is_string($address)) {
-            throw new \InvalidArgumentException('Address must be a string.');
+            throw new \InvalidArgumentException('Address must be a string');
         }
         if (!is_null($name) && !is_string($name)) {
-            throw new \InvalidArgumentException('Name must be a string.');
+            throw new \InvalidArgumentException('Name must be a string');
         }
         if (!self::validationEmail($address)) {
-            $this->exceptions[] = 'Email address is not valid: ' . $address;
+            ExceptionHandler::collect(__CLASS__, 'Email address is not valid: ' . $address, __FILE__, __LINE__);
         }
 
         $address = strtolower(trim($address));
@@ -247,7 +240,7 @@ class Message implements MessageInterface
     public function from($address, $name = null)
     {
         if (!self::validationEmail($address)) {
-            $this->exceptions[] = 'Email address is not valid: ' . $address;
+            ExceptionHandler::collect(__CLASS__, 'Email address is not valid' . $address, __FILE__, __LINE__);
         }
 
         $address = strtolower(trim($address));
@@ -269,7 +262,7 @@ class Message implements MessageInterface
      */
     public function subject($subject)
     {
-        $this->subject = $subject;
+        $this->subject = (string)$subject;
 
         return $this;
     }
@@ -284,7 +277,9 @@ class Message implements MessageInterface
     public function attach($file, array $options = [])
     {
         if (!is_file($file)) {
-            $this->exceptions[] = 'File does not exists.';
+            ExceptionHandler::collect(__CLASS__, 'File does not exists: ' . $file, __FILE__, __LINE__);
+
+            return $this;
         }
 
         $filename = end(explode(DIRECTORY_SEPARATOR, $file));
@@ -484,7 +479,7 @@ class Message implements MessageInterface
     public function getFile($file)
     {
         if (!is_file($file)) {
-            $this->exceptions[] = 'File does not exists.';
+            ExceptionHandler::collect(__CLASS__, 'File does not exists: ' . $file, __FILE__, __LINE__);
 
             return null;
         }

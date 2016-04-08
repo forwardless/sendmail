@@ -91,7 +91,11 @@ class SwiftMessageAdapter extends Message implements MessageInterface
             throw new \InvalidArgumentException('Name must be a string.');
         }
 
-        $this->swiftMessage->addTo($address, $name);
+        try {
+            $this->swiftMessage->addTo($address, $name);
+        } catch(\Swift_RfcComplianceException $e) {
+            ExceptionHandler::set($e->getMessage() . self::LINE_SEPARATOR . $e->getTraceAsString());
+        }
 
         return $this;
     }
@@ -135,6 +139,12 @@ class SwiftMessageAdapter extends Message implements MessageInterface
      */
     public function attach($file, array $options = [])
     {
+        if (!is_file($file)) {
+            ExceptionHandler::collect(__CLASS__, 'File does not exists: ' . $file, __FILE__, __LINE__);
+
+            return $this;
+        }
+
         parent::attach($file, $options);
 
         if (isset($options['mime_type'])) {

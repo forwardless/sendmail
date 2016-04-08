@@ -8,7 +8,6 @@ class Mailer implements MailerInterface
     private $transport;
 
     public $debug = false;
-    public $exceptions = [];
 
     /**
      * Create a new Mailer using $transport for delivery.
@@ -32,20 +31,17 @@ class Mailer implements MailerInterface
         $to = $message->getTo();
         $from = $message->getFrom();
         if (empty($to)) {
-            $this->exceptions[] =  'Cannot send message without a recipient.';
+            ExceptionHandler::collect(__CLASS__, 'Cannot send message without a recipient', __FILE__, __LINE__);
 
             return 0;
         }
         if (empty($from)) {
-            $this->exceptions[] =  'Cannot send message without a sender.';
+            ExceptionHandler::collect(__CLASS__, 'Cannot send message without a sender', __FILE__, __LINE__);
 
             return 0;
         }
 
-        $recipients = $this->transport->send($message);
-        array_merge_recursive($this->exceptions, $message->exceptions, $this->transport->exceptions);
-
-        return $recipients;
+        return $this->transport->send($message);
     }
 
     /**
@@ -68,5 +64,10 @@ class Mailer implements MailerInterface
     public function setTransport(TransportInterface $transport)
     {
         $this->transport = $transport;
+    }
+
+    public function getExceptions()
+    {
+        return ExceptionHandler::get();
     }
 }

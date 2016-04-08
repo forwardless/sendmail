@@ -4,8 +4,6 @@ namespace pyatakss\sendmail;
 
 class MailTransport implements TransportInterface
 {
-    public $exceptions = [];
-
     /**
      * Send the given Message.
      *
@@ -18,8 +16,6 @@ class MailTransport implements TransportInterface
      */
     public function send(MessageInterface $message)
     {
-        array_merge_recursive($this->exceptions, $message->exceptions);
-
         $message->preSend('mail');
         $to = 'To: ' . $message->getToAsString() . Message::LINE_SEPARATOR;
         $subject = $message->getSubjectAsString();
@@ -30,15 +26,17 @@ class MailTransport implements TransportInterface
             try {
                 $recipients = $this->sendViaSwift($message);
             } catch(\Swift_TransportException $e) {
-                $this->exceptions[] =  $e;
+                ExceptionHandler::set($e->getMessage() . PHP_EOL . $e->getTraceAsString());
 
                 return 0;
             }
         } else {
-            if (!mail($to, $subject, $body, $headers)) {
-                $this->exceptions[] =  'Sending email through the mail() failed.';
+            if (!@mail($to, $subject, $body, $headers)) {
+                ExceptionHandler::collect(__CLASS__, 'Sending email through the mail() failed.', __FILE__, __LINE__);
+                $recipients = 0;
+            } else {
+                $recipients = count(explode(',', $message->getToAsString()));
             }
-            $recipients = count(explode(',', $message->getToAsString()));
         }
 
         return $recipients;
@@ -49,6 +47,12 @@ class MailTransport implements TransportInterface
         $transport = \Swift_MailTransport::newInstance();
         $mailer = \Swift_Mailer::newInstance($transport);
 
-        return $mailer->send($message->swiftMessage);
+        try {
+            return $mailer->send($message->swiftMessage);
+        } catch(\Swift_IoException $e) {
+            ExceptionHandler::set($e->getMessage() . PHP_EOL . $e->getTraceAsString());
+        }
+
+        return 0;
     }
 }
