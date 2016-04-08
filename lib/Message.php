@@ -355,12 +355,17 @@ class Message implements MessageInterface
     /**
      * Get this message as a complete string.
      *
+     * @param string $mailer
      * @return string
      */
-    public function toString()
+    public function toString($mailer = 'mail')
     {
         $id = $this->getIdAsString();
-        $from = 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
+        if ($mailer === 'mail') {
+            $from = 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
+        } else {
+            $from = 'From: ' . $this->getFromForSmtp() . self::LINE_SEPARATOR;
+        }
         $to = 'To: ' . $this->getToAsString() . self::LINE_SEPARATOR;
         $subject = 'Subject: ' . $this->getSubjectAsString() . self::LINE_SEPARATOR;
 
@@ -439,10 +444,10 @@ class Message implements MessageInterface
         $this->headers = '';
         $this->message = '';
         $this->headers .= $this->getIdAsString();
-        if ($mailer === 'smtp') {
-            $this->headers .= 'From: ' . $this->getFromForSmtp() . self::LINE_SEPARATOR;
-        } elseif ($mailer === 'mail' || $mailer === 'mandrill_raw') {
+        if ($mailer === 'mail') {
             $this->headers .= 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
+        } else {
+            $this->headers .= 'From: ' . $this->getFromForSmtp() . self::LINE_SEPARATOR;
         }
         $this->headers .= 'Date: ' . $this->getDateAsString() . self::LINE_SEPARATOR;
         $this->headers .= 'MIME-Version: 1.0' . self::LINE_SEPARATOR;

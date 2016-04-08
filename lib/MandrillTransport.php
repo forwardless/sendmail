@@ -39,28 +39,29 @@ class MandrillTransport implements TransportInterface
         }
         if (!isset($to)) {
             ExceptionHandler::collect(__CLASS__, 'Cannot send message without a recipient', __FILE__, __LINE__);
+            return 0;
         }
 
         foreach ($message->getFrom() as $address => $name) {
             $from_email = $address;
-            $from_name = ($name) ? "=?UTF-8?B?" . $name . '?=' : '';
+            $from_name = ($name) ? $name : '';
         }
         if (!isset($from_email)) {
             ExceptionHandler::collect(__CLASS__, 'Cannot send message without a sender', __FILE__, __LINE__);
+            return 0;
         }
 
         try {
-            $raw_message = $message->toString();
+            $raw_message = $message->toString('mandrill_raw');
             $async = false;
             $ip_pool = 'Main Pool';
             $send_at = date(DATE_RFC2822);
             $return_path_domain = null;
             $result = $this->mandrill->messages->sendRaw($raw_message, $from_email, $from_name, $to, $async, $ip_pool, $send_at, $return_path_domain);
-            print_r($result);
         } catch (\Mandrill_Error $e) {
             ExceptionHandler::collect(__CLASS__, 'A mandrill error occurred: ' . get_class($e) . ' - ' . $e->getMessage(), __FILE__, __LINE__);
 
-            throw $e;
+            return 0;
         }
 
         return count($to);
