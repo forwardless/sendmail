@@ -12,36 +12,43 @@ class MailTransport implements TransportInterface
      *
      * @param MessageInterface $message
      * @return int
-     * @throws \Swift_TransportException
+     * @throws PSMailException
      */
     public function send(MessageInterface $message)
     {
-        $message->preSend('mail');
-        $to = 'To: ' . $message->getToAsString() . Message::LINE_SEPARATOR;
-        $subject = $message->getSubjectAsString();
-        $body = $message->getMessage();
-        $headers = $message->getHeaders();
+        $recipients = 0;
+        try {
+            $to = $message->getToAsString(true);
+            $subject = $message->getSubjectAsString();
+            $body = $message->getMessage();
+            $headers = $message->getHeaders();
+        } catch (PSMailException $e) {
+            throw $e;
+        }
 
         if ($message instanceof SwiftMessageAdapter) {
             try {
                 $recipients = $this->sendViaSwift($message);
-            } catch(\Swift_TransportException $e) {
-                ExceptionHandler::set($e->getMessage() . PHP_EOL . $e->getTraceAsString());
-
-                return 0;
+            } catch (\Swift_TransportException $e) {
+                throw new PSMailException($e);
             }
         } else {
             if (!@mail($to, $subject, $body, $headers)) {
-                ExceptionHandler::collect(__CLASS__, 'Sending email through the mail() failed.', __FILE__, __LINE__);
-                $recipients = 0;
+                throw new PSMailException('Send email through the mail() failed.');
             } else {
-                $recipients = count(explode(',', $message->getToAsString()));
+                $recipients = count($message->getTo());
             }
         }
 
         return $recipients;
     }
 
+    /**
+     * @param MessageInterface $message
+     * @return int
+     *
+     * @throws PSMailException
+     */
     private function sendViaSwift(MessageInterface $message)
     {
         $transport = \Swift_MailTransport::newInstance();
@@ -49,10 +56,8 @@ class MailTransport implements TransportInterface
 
         try {
             return $mailer->send($message->swiftMessage);
-        } catch(\Swift_IoException $e) {
-            ExceptionHandler::set($e->getMessage() . PHP_EOL . $e->getTraceAsString());
+        } catch (\Swift_IoException $e) {
+            throw new PSMailException($e);
         }
-
-        return 0;
     }
 }

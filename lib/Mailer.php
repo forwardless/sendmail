@@ -23,25 +23,16 @@ class Mailer implements MailerInterface
      * Send the given Message.
      *
      * @param MessageInterface $message
-     *
      * @return int
+     * @throws PSMailException
      */
     public function send(MessageInterface $message)
     {
-        $to = $message->getTo();
-        $from = $message->getFrom();
-        if (empty($to)) {
-            ExceptionHandler::collect(__CLASS__, 'Cannot send message without a recipient', __FILE__, __LINE__);
-
-            return 0;
+        try {
+            return $this->transport->send($message);
+        } catch (PSMailException $e) {
+            throw $e;
         }
-        if (empty($from)) {
-            ExceptionHandler::collect(__CLASS__, 'Cannot send message without a sender', __FILE__, __LINE__);
-
-            return 0;
-        }
-
-        return $this->transport->send($message);
     }
 
     /**
@@ -64,10 +55,5 @@ class Mailer implements MailerInterface
     public function setTransport(TransportInterface $transport)
     {
         $this->transport = $transport;
-    }
-
-    public function getExceptions()
-    {
-        return ExceptionHandler::get();
     }
 }

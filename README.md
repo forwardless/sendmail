@@ -26,14 +26,22 @@ $mandrillKey = 'mandrill API-key';
 #### Send message with attach through the mail() 
 ```php
 $mailer = new Mailer(new MailTransport());
-$message = (new Message())
+try {
+	$message = (new Message())
             ->to('emailto@example.com', 'Jon')
             ->from('emailfrom@example.com', 'Jon Mailer')
             ->subject('Test subject. Send mail php')
             ->body('<div style="color: red">Test content. Send mail php</div>', 'text/html')
             ->attach('full_filename', ['name' => 'main-logo.png', 'mime_type' => 'image\png']);
+} catch (\InvalidArgumentException $e) {
+	echo $e, PHP_EOL;
+}
 
-echo $mailer->send($message);
+try {
+	echo $mailer->send($message);
+} catch (\pyatakss\sendmail\PSMailException $e) {
+	echo $e, PHP_EOL;
+}
 ```
 
 #### Create different transports

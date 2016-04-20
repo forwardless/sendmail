@@ -21,53 +21,74 @@ class SMTPTransport implements TransportInterface
      * @param MessageInterface $message
      *
      * @return int
+     * @throws PSMailException
      */
     public function send(MessageInterface $message)
     {
-        if ($message instanceof SwiftMessageAdapter) {
-            $recipiens = $this->sendViaSwift($message);
-        } else {
-            $recipiens = $this->sendViaSockets($message);
-        }
+            if ($message instanceof SwiftMessageAdapter) {
+                try {
+                    $recipiens = $this->sendViaSwift($message);
+                } catch (\Swift_TransportException $e) {
+                    throw new PSMailException($e);
+                }
+            } else {
+                $recipiens = $this->sendViaSockets($message);
+            }
 
         return $recipiens;
     }
 
     /**
      * @param MessageInterface $message
+     *
      * @return mixed
+     * @throws PSMailException
      */
     private function sendViaSwift(MessageInterface $message)
     {
-        $transport = \Swift_SmtpTransport::newInstance($this->configuration['host'], $this->configuration['port'])
-            ->setUsername($this->configuration['username'])
-            ->setPassword($this->configuration['password']);
+        try {
+            $transport = \Swift_SmtpTransport::newInstance($this->configuration['host'], $this->configuration['port'])
+                ->setUsername($this->configuration['username'])
+                ->setPassword($this->configuration['password']);
+        } catch (\Swift_TransportException $e) {
+            throw new PSMailException($e);
+        }
         $mailer = \Swift_Mailer::newInstance($transport);
 
-        return $mailer->send($message->swiftMessage);
+        try {
+            return $mailer->send($message->swiftMessage);
+        } catch (\Swift_IoException $e) {
+            throw new PSMailException($e);
+        }
     }
 
     /**
      * @param MessageInterface $message
+     *
      * @return int
+     * @throws PSMailException
      */
     private function sendViaSockets(MessageInterface $message)
     {
         if (!array_key_exists('host', $this->configuration) || !array_key_exists('port', $this->configuration) || !array_key_exists('username', $this->configuration) || !array_key_exists('password', $this->configuration)) {
-            ExceptionHandler::collect(__CLASS__, 'Configuration failed', __FILE__, __LINE__);
-
-            return 0;
+            throw new PSMailException('Smtp configuration failed.');
         }
 
-        $message->preSend('smtp');
-        $to = $message->getToAsString();
-        foreach ($message->getFrom() as $address => $name) {
+        try {
+            $toStr = $message->getToAsString();
+            $toArr = $message->getTo();
+            $subject = $message->getSubjectAsString();
+            $body = $message->getMessage();
+            $headers = $message->getHeaders();
+            $from = $message->getFrom();
+        } catch (PSMailException $e) {
+            throw $e;
+        }
+
+        foreach ($from as $address => $name) {
             $from_email = $address;
             $from_name = $name;
         }
-        $subject = $message->getSubjectAsString();
-        $body = $message->getMessage();
-        $headers = $message->getHeaders();
 
         $smtp_host = $this->configuration['host'];
         $smtp_port = $this->configuration['port'];
@@ -77,9 +98,7 @@ class SMTPTransport implements TransportInterface
         $from_email = (isset($from_email) && !empty($from_email)) ? $from_email : $user;
 
         if (!($socket = fsockopen($smtp_host, $smtp_port, $errno, $errstr, 15))) {
-            ExceptionHandler::collect(__CLASS__, "Error connecting to '$smtp_host' ($errno) ($errstr)", __FILE__, __LINE__);
-
-            return 0;
+            throw new PSMailException("Error connecting to '$smtp_host' ($errno) ($errstr)");
         }
 
         $this->serverParse($socket, '220');
@@ -99,7 +118,7 @@ class SMTPTransport implements TransportInterface
         fwrite($socket, 'MAIL FROM: <' . $from_email . '>' . Message::LINE_SEPARATOR);
         $this->serverParse($socket, '250', __LINE__);
 
-        foreach ($message->getTo() as $email => $name) {
+        foreach ($toArr as $email => $name) {
             fwrite($socket, 'RCPT TO: <' . $email . '>' . Message::LINE_SEPARATOR);
             $this->serverParse($socket, '250', __LINE__);
         }
@@ -108,7 +127,7 @@ class SMTPTransport implements TransportInterface
         $this->serverParse($socket, '354', __LINE__);
 
         fwrite($socket, 'Subject: ' . $subject . Message::LINE_SEPARATOR
-            . 'To: ' . $to . Message::LINE_SEPARATOR
+            . 'To: ' . $toStr . Message::LINE_SEPARATOR
             . $headers . Message::LINE_SEPARATOR . Message::LINE_SEPARATOR
             . $body . Message::LINE_SEPARATOR);
 
@@ -118,33 +137,35 @@ class SMTPTransport implements TransportInterface
         fwrite($socket, 'QUIT' . Message::LINE_SEPARATOR);
         fclose($socket);
 
-        return count(explode(',', $to));
+        return count($toArr);
     }
 
     /**
+     * Parse server responses
+     *
      * @param $socket
      * @param $expected_response
      * @param null $line
+     *
      * @return bool
+     * @throws PSMailException
      */
     private function serverParse($socket, $expected_response, $line = null)
     {
         $server_response = '';
         while (substr($server_response, 3, 1) != ' ') {
             if (!($server_response = fgets($socket, 256))) {
-                ExceptionHandler::collect(__CLASS__, 'Error while fetching server response codes', __FILE__, __LINE__);
+                throw new PSMailException('Error while fetching server response codes');
             }
         }
 
         if (!(substr($server_response, 0, 3) == $expected_response)) {
-            ExceptionHandler::collect(__CLASS__, $server_response, __FILE__, __LINE__);
-
-            return 0;
+            throw new PSMailException($server_response);
         }
     }
 
     /**
-     *
+     *  Check connection through the sockets
      */
     public function beforeSend()
     {

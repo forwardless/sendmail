@@ -94,7 +94,7 @@ class SwiftMessageAdapter extends Message implements MessageInterface
         try {
             $this->swiftMessage->addTo($address, $name);
         } catch(\Swift_RfcComplianceException $e) {
-            ExceptionHandler::set($e->getMessage() . self::LINE_SEPARATOR . $e->getTraceAsString());
+            throw new \InvalidArgumentException($e);
         }
 
         return $this;
@@ -134,15 +134,14 @@ class SwiftMessageAdapter extends Message implements MessageInterface
      *
      * @param  string $file
      * @param  array $options
-     *
+     * 
      * @return MessageInterface $this
+     * @throws PSMailException
      */
     public function attach($file, array $options = [])
     {
         if (!is_file($file)) {
-            ExceptionHandler::collect(__CLASS__, 'File does not exists: ' . $file, __FILE__, __LINE__);
-
-            return $this;
+            throw new PSMailException('File does not exists: ' . $file);
         }
 
         parent::attach($file, $options);

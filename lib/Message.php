@@ -45,29 +45,47 @@ class Message implements MessageInterface
 
     /**
      * @return array
+     * @throws PSMailException
      */
     public function getTo()
     {
-        return $this->to;
+        $to = $this->to;
+
+        if (!($this instanceof SwiftMessageAdapter) && empty($to)) {
+            throw new PSMailException('Recipient address does not specified.');
+        }
+
+        array_map(function ($email, $name){
+            if (!self::validationEmail($email)) {
+                throw  new PSMailException('Email address is not valid: ' . $email);
+            }
+        }, array_keys($to), $to);
+
+        return $to;
     }
 
     /**
      *
+     * @param bool $baseEncode
      * @return string
-     * @throws \Exception
+     * @throws PSMailException
      */
-    public function getToAsString()
+    public function getToAsString($baseEncode = false)
     {
-        if (!($this instanceof SwiftMessageAdapter) && empty($this->to)) {
-            ExceptionHandler::collect(__CLASS__, 'Recipient address does not specified', __FILE__, __LINE__);
-
-            return false;
+        try {
+            $toArr = $this->getTo();
+        } catch (PSMailException $e) {
+            throw $e;
         }
 
         $to = '';
-        foreach ($this->to as $address => $recipient) {
+        foreach ($toArr as $address => $recipient) {
             if (!empty($recipient)) {
-                $to .= '=?UTF-8?B?' . base64_encode($recipient) . '?= ';
+                if ($baseEncode) {
+                    $to .= '=?UTF-8?B?' . base64_encode($recipient) . '?= ';
+                } else {
+                    $to .= $recipient . ' ';
+                }
             }
             $to .= '<' . $address . '>, ';
         }
@@ -78,42 +96,39 @@ class Message implements MessageInterface
 
     /**
      * @return array
+     * @throws PSMailException
      */
     public function getFrom()
     {
-        return $this->from;
-    }
+        $from = $this->from;
 
-    public function getFromAsString()
-    {
-        if (!($this instanceof SwiftMessageAdapter) && empty($this->from)) {
-            ExceptionHandler::collect(__CLASS__, 'Sender address does not specified', __FILE__, __LINE__);
-
-            return false;
+        if (!($this instanceof SwiftMessageAdapter) && empty($from)) {
+            throw new PSMailException('Sender address does not specified');
         }
 
-        $from = '';
-        foreach ($this->from as $address => $sender) {
-            if (!empty($sender)) {
-                $from .= "=?UTF-8?B?" . $sender . '?= ';
+        array_map(function ($email, $name){
+            if (!self::validationEmail($email)) {
+                throw  new PSMailException('Email address is not valid: ' . $email);
             }
-            $from .= '<' . $address . '>, ';
-        }
-        $from = rtrim($from, ', ');
+        }, array_keys($from), $from);
 
         return $from;
     }
 
-    public function getFromForSmtp()
+    /**
+     * @return string
+     * @throws PSMailException
+     */
+    public function getFromAsString()
     {
-        if (!($this instanceof SwiftMessageAdapter) && empty($this->from)) {
-            ExceptionHandler::collect(__CLASS__, 'Sender address does not specified', __FILE__, __LINE__);
-
-            return false;
+        try {
+            $fromArr = $this->getFrom();
+        } catch (PSMailException $e) {
+            throw $e;
         }
 
         $from = '';
-        foreach ($this->from as $address => $sender) {
+        foreach ($fromArr as $address => $sender) {
             if (!empty($sender)) {
                 $from .= $sender . ' ';
             }
@@ -147,34 +162,12 @@ class Message implements MessageInterface
         return $this->body;
     }
 
-    public function getBodyAsString()
-    {
-        $message = '';
-        $message .= $this->body;
-
-        return $message;
-    }
-
     /**
      * @return array
      */
     public function getAttach()
     {
         return $this->attach;
-    }
-
-    public function getAttachAsString()
-    {
-        $str = '';
-        foreach ($this->attach as $file => $options) {
-            $str .= "--{$this->boundary}" . self::LINE_SEPARATOR;
-            $str .= "Content-Type: {$options['mime_type']}; name=\"{$options['name']}\"" . self::LINE_SEPARATOR;
-            $str .= "Content-Disposition: attachment; filename={$options['filename']}" . self::LINE_SEPARATOR;
-            $str .= "Content-Transfer-Encoding: base64" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
-            $str .= chunk_split(base64_encode($file)) . self::LINE_SEPARATOR;
-        }
-
-        return $str;
     }
 
     /**
@@ -202,10 +195,8 @@ class Message implements MessageInterface
      *
      * @param  string $address
      * @param  string|null $name
-     *
-     * @throws \InvalidArgumentException
-     *
      * @return $this
+     * @throws \InvalidArgumentException
      */
     public function to($address, $name = null)
     {
@@ -214,9 +205,6 @@ class Message implements MessageInterface
         }
         if (!is_null($name) && !is_string($name)) {
             throw new \InvalidArgumentException('Name must be a string');
-        }
-        if (!self::validationEmail($address)) {
-            ExceptionHandler::collect(__CLASS__, 'Email address is not valid: ' . $address, __FILE__, __LINE__);
         }
 
         $address = strtolower(trim($address));
@@ -235,14 +223,10 @@ class Message implements MessageInterface
      * @param  string $address
      * @param  string|null $name
      *
-     * @return  MessageInterface $this
+     * @return MessageInterface $this
      */
     public function from($address, $name = null)
     {
-        if (!self::validationEmail($address)) {
-            ExceptionHandler::collect(__CLASS__, 'Email address is not valid' . $address, __FILE__, __LINE__);
-        }
-
         $address = strtolower(trim($address));
         $name = trim(preg_replace('/[\r\n]+/', '', $name));
 
@@ -258,7 +242,8 @@ class Message implements MessageInterface
      *
      * @param  string $subject
      *
-     * @return  MessageInterface $this
+     * @return MessageInterface $this
+     * @throws PSMailException
      */
     public function subject($subject)
     {
@@ -273,15 +258,10 @@ class Message implements MessageInterface
      * @param  string $file
      * @param  array $options
      * @return MessageInterface $this
+     * @throws PSMailException
      */
     public function attach($file, array $options = [])
     {
-        if (!is_file($file)) {
-            ExceptionHandler::collect(__CLASS__, 'File does not exists: ' . $file, __FILE__, __LINE__);
-
-            return $this;
-        }
-
         $filename = end(explode(DIRECTORY_SEPARATOR, $file));
         $options['filename'] = $filename;
         if (!isset($options['name']) || $options['name'] == '') {
@@ -304,10 +284,11 @@ class Message implements MessageInterface
      * @param string $charset optional
      *
      * @return MessageInterface $this
+     * @throws PSMailException
      */
     public function body($body, $contentType = null, $charset = null)
     {
-        $this->body = (string)$body;
+        $this->body = $this->word_chunk($body);
 
         if (!is_null($contentType)) {
             $this->contentType = $contentType;
@@ -355,18 +336,18 @@ class Message implements MessageInterface
     /**
      * Get this message as a complete string.
      *
-     * @param string $mailer
      * @return string
+     * @throws PSMailException
      */
-    public function toString($mailer = 'mail')
+    public function toString()
     {
         $id = $this->getIdAsString();
-        if ($mailer === 'mail') {
+        try {
+            $to = 'To: ' . $this->getToAsString() . self::LINE_SEPARATOR;
             $from = 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
-        } else {
-            $from = 'From: ' . $this->getFromForSmtp() . self::LINE_SEPARATOR;
+        } catch (PSMailException $e) {
+            throw $e;
         }
-        $to = 'To: ' . $this->getToAsString() . self::LINE_SEPARATOR;
         $subject = 'Subject: ' . $this->getSubjectAsString() . self::LINE_SEPARATOR;
 
         $body = '';
@@ -381,7 +362,7 @@ class Message implements MessageInterface
 
             $body .= "--{$this->altBoundary}" . self::LINE_SEPARATOR;
             $body .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
-            $body .= $this->getBodyAsString() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+            $body .= $this->getBody() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
             $body .= "--{$this->altBoundary}--" . self::LINE_SEPARATOR;
 
@@ -391,13 +372,17 @@ class Message implements MessageInterface
                 $body .= "Content-Disposition: attachment; filename=\"{$options['filename']}\"" . self::LINE_SEPARATOR;
                 $body .= "Content-Transfer-Encoding: base64" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
-                $body .= $this->getFile($file) . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+                try {
+                    $body .= $this->getFile($file) . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+                } catch (PSMailException $e) {
+                    throw $e;
+                }
             }
 
             $body .= "--{$this->boundary}--" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
         } else {
             $body .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
-            $body .= $this->getBodyAsString() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+            $body .= $this->getBody() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
         }
 
         $message = $id . $from . $to . $subject . $body;
@@ -417,51 +402,47 @@ class Message implements MessageInterface
         return filter_var($emailAddress, FILTER_VALIDATE_EMAIL);
     }
 
-    protected function setHeaders($header)
-    {
-        $this->headers .= $header;
-
-        return $header;
-    }
-
+    /**
+     * @return string
+     * @throws PSMailException
+     */
     public function getHeaders()
     {
-        return $this->headers;
-    }
-
-    public function getMessage()
-    {
-        return $this->message;
-    }
-
-    public function getDateAsString()
-    {
-        return date(DATE_RFC2822);
-    }
-
-    public function preSend($mailer)
-    {
         $this->headers = '';
-        $this->message = '';
-        $this->headers .= $this->getIdAsString();
-        if ($mailer === 'mail') {
+
+        try {
             $this->headers .= 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
-        } else {
-            $this->headers .= 'From: ' . $this->getFromForSmtp() . self::LINE_SEPARATOR;
+        } catch (PSMailException $e) {
+            throw $e;
         }
         $this->headers .= 'Date: ' . $this->getDateAsString() . self::LINE_SEPARATOR;
         $this->headers .= 'MIME-Version: 1.0' . self::LINE_SEPARATOR;
 
-        if (!empty($this->attach) && $mailer !== 'mandrill') {
+        if (!empty($this->attach)) {
             $this->headers .= 'Content-Type: multipart/mixed; boundary="' . $this->boundary . '"' . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+        } else {
+            $this->headers .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR;
+        }
 
+        return $this->headers;
+    }
+
+    /**
+     * @return string
+     * @throws PSMailException
+     */
+    public function getMessage()
+    {
+        $this->message = '';
+
+        if (!empty($this->attach)) {
             $this->message .= "--{$this->boundary}" . self::LINE_SEPARATOR;
             $this->message .= 'Content-Type: multipart/alternative; boundary="' . $this->altBoundary . '"' . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
             $this->message .= "--{$this->altBoundary}" . self::LINE_SEPARATOR;
             $this->message .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
-            $this->message .= $this->getBodyAsString() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+            $this->message .= $this->getBody() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
             $this->message .= "--{$this->altBoundary}--" . self::LINE_SEPARATOR;
 
@@ -471,22 +452,30 @@ class Message implements MessageInterface
                 $this->message .= "Content-Disposition: attachment; filename=\"{$options['filename']}\"" . self::LINE_SEPARATOR;
                 $this->message .= "Content-Transfer-Encoding: base64" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
-                $this->message .= $this->getFile($file) . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+                try {
+                    $this->message .= $this->getFile($file) . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+                } catch (PSMailException $e) {
+                    throw $e;
+                }
             }
 
             $this->message .= "--{$this->boundary}--" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
         } else {
-            $this->headers .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR;
-            $this->message .= $this->getBodyAsString();
+            $this->message .= $this->getBody();
         }
+
+        return $this->message;
+    }
+
+    public function getDateAsString()
+    {
+        return date(DATE_RFC2822);
     }
 
     public function getFile($file)
     {
         if (!is_file($file)) {
-            ExceptionHandler::collect(__CLASS__, 'File does not exists: ' . $file, __FILE__, __LINE__);
-
-            return null;
+            throw new PSMailException('File does not exists: ' . $file);
         }
 
         $handle = @fopen($file, 'rb');
@@ -499,10 +488,22 @@ class Message implements MessageInterface
 
     public function __toString()
     {
-        return $this->toString();
+        try {
+            return $this->toString();
+        } catch (PSMailException $e) {
+            return $e->getTraceAsString();
+        }
     }
 
-    public function word_chunk($str, $len = self::LINE_LENGTH, $end = "\n")
+    /**
+     * Chunk incoming multibyte string
+     *
+     * @param $str
+     * @param int $len
+     * @param string $end
+     * @return string
+     */
+    public function word_chunk($str, $len = self::LINE_LENGTH, $end = self::LINE_SEPARATOR)
     {
         $pattern = '~.{1,' . $len . '}~u';
         $str = preg_replace($pattern, '$0' . $end, $str);
