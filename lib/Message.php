@@ -51,16 +51,6 @@ class Message implements MessageInterface
     {
         $to = $this->to;
 
-        if (!($this instanceof SwiftMessageAdapter) && empty($to)) {
-            throw new PSMailException('Recipient address does not specified.');
-        }
-
-        array_map(function ($email, $name){
-            if (!self::validationEmail($email)) {
-                throw  new PSMailException('Email address is not valid: ' . $email);
-            }
-        }, array_keys($to), $to);
-
         return $to;
     }
 
@@ -72,11 +62,7 @@ class Message implements MessageInterface
      */
     public function getToAsString($baseEncode = false)
     {
-        try {
-            $toArr = $this->getTo();
-        } catch (PSMailException $e) {
-            throw $e;
-        }
+        $toArr = $this->getTo();
 
         $to = '';
         foreach ($toArr as $address => $recipient) {
@@ -102,16 +88,6 @@ class Message implements MessageInterface
     {
         $from = $this->from;
 
-        if (!($this instanceof SwiftMessageAdapter) && empty($from)) {
-            throw new PSMailException('Sender address does not specified');
-        }
-
-        array_map(function ($email, $name){
-            if (!self::validationEmail($email)) {
-                throw  new PSMailException('Email address is not valid: ' . $email);
-            }
-        }, array_keys($from), $from);
-
         return $from;
     }
 
@@ -121,11 +97,7 @@ class Message implements MessageInterface
      */
     public function getFromAsString()
     {
-        try {
-            $fromArr = $this->getFrom();
-        } catch (PSMailException $e) {
-            throw $e;
-        }
+        $fromArr = $this->getFrom();
 
         $from = '';
         foreach ($fromArr as $address => $sender) {
@@ -342,12 +314,8 @@ class Message implements MessageInterface
     public function toString()
     {
         $id = $this->getIdAsString();
-        try {
-            $to = 'To: ' . $this->getToAsString() . self::LINE_SEPARATOR;
-            $from = 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
-        } catch (PSMailException $e) {
-            throw $e;
-        }
+        $to = 'To: ' . $this->getToAsString() . self::LINE_SEPARATOR;
+        $from = 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
         $subject = 'Subject: ' . $this->getSubjectAsString() . self::LINE_SEPARATOR;
 
         $body = '';
@@ -367,16 +335,15 @@ class Message implements MessageInterface
             $body .= "--{$this->altBoundary}--" . self::LINE_SEPARATOR;
 
             foreach ($this->attach as $file => $options) {
-                $body .= "--{$this->boundary}" . self::LINE_SEPARATOR;
-                $body .= "Content-Type: {$options['mime_type']}; name=\"{$options['name']}\"" . self::LINE_SEPARATOR;
-                $body .= "Content-Disposition: attachment; filename=\"{$options['filename']}\"" . self::LINE_SEPARATOR;
-                $body .= "Content-Transfer-Encoding: base64" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+                if ($file = $this->getFile($file)) {
+                    $body .= "--{$this->boundary}" . self::LINE_SEPARATOR;
+                    $body .= "Content-Type: {$options['mime_type']}; name=\"{$options['name']}\"" . self::LINE_SEPARATOR;
+                    $body .= "Content-Disposition: attachment; filename=\"{$options['filename']}\"" . self::LINE_SEPARATOR;
+                    $body .= "Content-Transfer-Encoding: base64" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
-                try {
-                    $body .= $this->getFile($file) . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
-                } catch (PSMailException $e) {
-                    throw $e;
+                    $body .=  $file . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
                 }
+
             }
 
             $body .= "--{$this->boundary}--" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
@@ -474,8 +441,8 @@ class Message implements MessageInterface
 
     public function getFile($file)
     {
-        if (!is_file($file)) {
-            throw new PSMailException('File does not exists: ' . $file);
+        if(!is_file($file)) {
+            return false;
         }
 
         $handle = @fopen($file, 'rb');

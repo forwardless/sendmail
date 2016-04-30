@@ -4,14 +4,14 @@ namespace pyatakss\sendmail;
 
 use Mandrill;
 
-class MandrillTransport implements TransportInterface
+class MandrillTransport extends Transport implements TransportInterface
 {
-    protected $configuration;
     private $mandrill;
 
     public function __construct($configuration = null)
     {
-        $this->configuration = $configuration;
+        parent::__construct($configuration);
+
         $this->mandrill = new Mandrill($configuration);
     }
 
@@ -23,30 +23,32 @@ class MandrillTransport implements TransportInterface
      *
      * @param MessageInterface $message
      * @return int
-     * @throws \Mandrill_Error
+     * @throws PSMailException
      */
     public function send(MessageInterface $message)
     {
-        $recipiens = $this->sendViaMandrillRaw($message);
+        try {
+            parent::send($message);
+        } catch (PSMailException $e) {
+            throw $e;
+        }
 
-        return $recipiens;
+        $recipients = $this->sendViaMandrillRaw($message);
+
+        return $recipients;
     }
 
     private function sendViaMandrillRaw($message)
     {
-        try {
-            foreach ($message->getTo() as $address => $name) {
-                $to[] = $address;
-            }
-
-            foreach ($message->getFrom() as $address => $name) {
-                $from_email = $address;
-                $from_name = ($name) ? $name : '';
-            }
-            $raw_message = $message->toString();
-        } catch (PSMailException $e) {
-            throw $e;
+        foreach ($this->to as $address => $name) {
+            $to[] = $address;
         }
+
+        foreach ($this->from as $address => $name) {
+            $from_email = $address;
+            $from_name = ($name) ? $name : '';
+        }
+        $raw_message = $message->toString();
 
         try {
             $async = false;

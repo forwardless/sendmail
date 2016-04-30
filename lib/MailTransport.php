@@ -2,7 +2,7 @@
 
 namespace pyatakss\sendmail;
 
-class MailTransport implements TransportInterface
+class MailTransport extends Transport implements TransportInterface
 {
     /**
      * Send the given Message.
@@ -16,12 +16,22 @@ class MailTransport implements TransportInterface
      */
     public function send(MessageInterface $message)
     {
+        try {
+            parent::send($message);
+        } catch (PSMailException $e) {
+            throw $e;
+        }
+
         $recipients = 0;
         try {
-            $to = $message->getToAsString(true);
-            $subject = $message->getSubjectAsString();
-            $body = $message->getMessage();
-            $headers = $message->getHeaders();
+//            $to = $message->getToAsString(true);
+//            $subject = $message->getSubjectAsString();
+//            $body = $message->getMessage();
+//            $headers = $message->getHeaders();
+            $to = $this->toAsString;
+            $subject = $this->subject;
+            $body = $this->body;
+            $headers = $this->headers;
         } catch (PSMailException $e) {
             throw $e;
         }

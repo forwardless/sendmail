@@ -3,15 +3,8 @@
 namespace pyatakss\sendmail;
 
 
-class SMTPTransport implements TransportInterface
+class SMTPTransport extends Transport implements TransportInterface
 {
-    protected $configuration;
-
-    public function __construct($configuration = null)
-    {
-        $this->configuration = $configuration;
-    }
-
     /**
      * Send the given Message.
      *
@@ -25,15 +18,20 @@ class SMTPTransport implements TransportInterface
      */
     public function send(MessageInterface $message)
     {
-            if ($message instanceof SwiftMessageAdapter) {
-                try {
-                    $recipiens = $this->sendViaSwift($message);
-                } catch (\Swift_TransportException $e) {
-                    throw new PSMailException($e);
-                }
-            } else {
-                $recipiens = $this->sendViaSockets($message);
+        try {
+            parent::send($message);
+        } catch (PSMailException $e) {
+            throw $e;
+        }
+        if ($message instanceof SwiftMessageAdapter) {
+            try {
+                $recipiens = $this->sendViaSwift($message);
+            } catch (\Swift_TransportException $e) {
+                throw new PSMailException($e);
             }
+        } else {
+            $recipiens = $this->sendViaSockets($message);
+        }
 
         return $recipiens;
     }
@@ -75,12 +73,12 @@ class SMTPTransport implements TransportInterface
         }
 
         try {
-            $toStr = $message->getToAsString();
-            $toArr = $message->getTo();
-            $subject = $message->getSubjectAsString();
-            $body = $message->getMessage();
-            $headers = $message->getHeaders();
-            $from = $message->getFrom();
+            $toStr = $this->toAsString;
+            $to = $this->to;
+            $subject = $this->subject;
+            $body = $this->body;
+            $headers = $this->headers;
+            $from = $this->from;
         } catch (PSMailException $e) {
             throw $e;
         }
@@ -118,7 +116,7 @@ class SMTPTransport implements TransportInterface
         fwrite($socket, 'MAIL FROM: <' . $from_email . '>' . Message::LINE_SEPARATOR);
         $this->serverParse($socket, '250', __LINE__);
 
-        foreach ($toArr as $email => $name) {
+        foreach ($to as $email => $name) {
             fwrite($socket, 'RCPT TO: <' . $email . '>' . Message::LINE_SEPARATOR);
             $this->serverParse($socket, '250', __LINE__);
         }
@@ -137,7 +135,7 @@ class SMTPTransport implements TransportInterface
         fwrite($socket, 'QUIT' . Message::LINE_SEPARATOR);
         fclose($socket);
 
-        return count($toArr);
+        return count($to);
     }
 
     /**
