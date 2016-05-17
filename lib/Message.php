@@ -45,7 +45,6 @@ class Message implements MessageInterface
 
     /**
      * @return array
-     * @throws PSMailException
      */
     public function getTo()
     {
@@ -58,7 +57,6 @@ class Message implements MessageInterface
      *
      * @param bool $baseEncode
      * @return string
-     * @throws PSMailException
      */
     public function getToAsString($baseEncode = false)
     {
@@ -82,7 +80,6 @@ class Message implements MessageInterface
 
     /**
      * @return array
-     * @throws PSMailException
      */
     public function getFrom()
     {
@@ -182,9 +179,7 @@ class Message implements MessageInterface
         $address = strtolower(trim($address));
         $name = trim(preg_replace('/[\r\n]+/', '', $name));
 
-        if (!array_key_exists($address, $this->to)) {
-            $this->to[$address] = ($name) ?: '';
-        }
+        $this->to[$address] = ($name) ?: '';
 
         return $this;
     }
@@ -215,7 +210,6 @@ class Message implements MessageInterface
      * @param  string $subject
      *
      * @return MessageInterface $this
-     * @throws PSMailException
      */
     public function subject($subject)
     {
@@ -230,7 +224,6 @@ class Message implements MessageInterface
      * @param  string $file
      * @param  array $options
      * @return MessageInterface $this
-     * @throws PSMailException
      */
     public function attach($file, array $options = [])
     {
@@ -240,7 +233,7 @@ class Message implements MessageInterface
             $options['name'] = $filename;
         }
         if (!isset($options['mime_type']) || $options['mime_type'] == '') {
-            $options['mime_type'] = @(new \finfo)->file($file, FILEINFO_MIME);
+            $options['mime_type'] = (new \finfo)->file($file, FILEINFO_MIME);
         }
 
         $this->attach[$file] = $options;
@@ -256,7 +249,6 @@ class Message implements MessageInterface
      * @param string $charset optional
      *
      * @return MessageInterface $this
-     * @throws PSMailException
      */
     public function body($body, $contentType = null, $charset = null)
     {
@@ -309,7 +301,6 @@ class Message implements MessageInterface
      * Get this message as a complete string.
      *
      * @return string
-     * @throws PSMailException
      */
     public function toString()
     {
@@ -349,7 +340,7 @@ class Message implements MessageInterface
             $body .= "--{$this->boundary}--" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
         } else {
             $body .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
-            $body .= $this->getBody() . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+            $body .= $this->getBody();
         }
 
         $message = $id . $from . $to . $subject . $body;
@@ -371,24 +362,19 @@ class Message implements MessageInterface
 
     /**
      * @return string
-     * @throws PSMailException
      */
     public function getHeaders()
     {
         $this->headers = '';
 
-        try {
-            $this->headers .= 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
-        } catch (PSMailException $e) {
-            throw $e;
-        }
+        $this->headers .= 'From: ' . $this->getFromAsString() . self::LINE_SEPARATOR;
         $this->headers .= 'Date: ' . $this->getDateAsString() . self::LINE_SEPARATOR;
         $this->headers .= 'MIME-Version: 1.0' . self::LINE_SEPARATOR;
 
         if (!empty($this->attach)) {
-            $this->headers .= 'Content-Type: multipart/mixed; boundary="' . $this->boundary . '"' . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
+            $this->headers .= 'Content-Type: multipart/mixed; boundary="' . $this->boundary . '"';
         } else {
-            $this->headers .= "Content-Type: {$this->contentType}; charset={$this->charset}" . self::LINE_SEPARATOR;
+            $this->headers .= "Content-Type: {$this->contentType}; charset={$this->charset}";
         }
 
         return $this->headers;
@@ -419,11 +405,7 @@ class Message implements MessageInterface
                 $this->message .= "Content-Disposition: attachment; filename=\"{$options['filename']}\"" . self::LINE_SEPARATOR;
                 $this->message .= "Content-Transfer-Encoding: base64" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
 
-                try {
-                    $this->message .= $this->getFile($file) . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
-                } catch (PSMailException $e) {
-                    throw $e;
-                }
+                $this->message .= $this->getFile($file) . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
             }
 
             $this->message .= "--{$this->boundary}--" . self::LINE_SEPARATOR . self::LINE_SEPARATOR;
@@ -441,12 +423,8 @@ class Message implements MessageInterface
 
     public function getFile($file)
     {
-        if(!is_file($file)) {
-            return false;
-        }
-
-        $handle = @fopen($file, 'rb');
-        $f_contents = @fread($handle, @filesize($file));
+        $handle = fopen($file, 'rb');
+        $f_contents = fread($handle, @filesize($file));
         $f_contents = chunk_split(base64_encode($f_contents));
         fclose($handle);
 
@@ -455,11 +433,7 @@ class Message implements MessageInterface
 
     public function __toString()
     {
-        try {
-            return $this->toString();
-        } catch (PSMailException $e) {
-            return $e->getTraceAsString();
-        }
+        return $this->toString();
     }
 
     /**

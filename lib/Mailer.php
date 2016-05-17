@@ -24,15 +24,10 @@ class Mailer implements MailerInterface
      *
      * @param MessageInterface $message
      * @return int
-     * @throws PSMailException
      */
     public function send(MessageInterface $message)
     {
-        try {
-            return $this->transport->send($message);
-        } catch (PSMailException $e) {
-            throw $e;
-        }
+        return $this->transport->send($message);
     }
 
     /**

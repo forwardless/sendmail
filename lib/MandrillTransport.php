@@ -27,17 +27,16 @@ class MandrillTransport extends Transport implements TransportInterface
      */
     public function send(MessageInterface $message)
     {
-        try {
-            parent::send($message);
-        } catch (PSMailException $e) {
-            throw $e;
-        }
-
         $recipients = $this->sendViaMandrillRaw($message);
 
         return $recipients;
     }
 
+    /**
+     * @param $message
+     * @return mixed
+     * @throws \Mandrill_Error
+     */
     private function sendViaMandrillRaw($message)
     {
         foreach ($this->to as $address => $name) {
@@ -50,15 +49,11 @@ class MandrillTransport extends Transport implements TransportInterface
         }
         $raw_message = $message->toString();
 
-        try {
-            $async = false;
-            $ip_pool = 'Main Pool';
-            $send_at = date(DATE_RFC2822);
-            $return_path_domain = null;
-            $result = $this->mandrill->messages->sendRaw($raw_message, $from_email, $from_name, $to, $async, $ip_pool, $send_at, $return_path_domain);
-        } catch (\Mandrill_Error $e) {
-            throw new PSMailException($e);
-        }
+        $async = false;
+        $ip_pool = 'Main Pool';
+        $send_at = date(DATE_RFC2822);
+        $return_path_domain = null;
+        $result = $this->mandrill->messages->sendRaw($raw_message, $from_email, $from_name, $to, $async, $ip_pool, $send_at, $return_path_domain);
 
         return count($to);
     }

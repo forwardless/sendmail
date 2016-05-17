@@ -14,74 +14,21 @@ class SMTPTransport extends Transport implements TransportInterface
      * @param MessageInterface $message
      *
      * @return int
-     * @throws PSMailException
      */
     public function send(MessageInterface $message)
     {
-        try {
-            parent::send($message);
-        } catch (PSMailException $e) {
-            throw $e;
-        }
-        if ($message instanceof SwiftMessageAdapter) {
-            try {
-                $recipiens = $this->sendViaSwift($message);
-            } catch (\Swift_TransportException $e) {
-                throw new PSMailException($e);
-            }
-        } else {
-            $recipiens = $this->sendViaSockets($message);
-        }
-
-        return $recipiens;
-    }
-
-    /**
-     * @param MessageInterface $message
-     *
-     * @return mixed
-     * @throws PSMailException
-     */
-    private function sendViaSwift(MessageInterface $message)
-    {
-        try {
-            $transport = \Swift_SmtpTransport::newInstance($this->configuration['host'], $this->configuration['port'])
-                ->setUsername($this->configuration['username'])
-                ->setPassword($this->configuration['password']);
-        } catch (\Swift_TransportException $e) {
-            throw new PSMailException($e);
-        }
-        $mailer = \Swift_Mailer::newInstance($transport);
-
-        try {
-            return $mailer->send($message->swiftMessage);
-        } catch (\Swift_IoException $e) {
-            throw new PSMailException($e);
-        }
-    }
-
-    /**
-     * @param MessageInterface $message
-     *
-     * @return int
-     * @throws PSMailException
-     */
-    private function sendViaSockets(MessageInterface $message)
-    {
         if (!array_key_exists('host', $this->configuration) || !array_key_exists('port', $this->configuration) || !array_key_exists('username', $this->configuration) || !array_key_exists('password', $this->configuration)) {
-            throw new PSMailException('Smtp configuration failed.');
+            return 0;
         }
+        $messageStr = $message->toString();
 
-        try {
-            $toStr = $this->toAsString;
-            $to = $this->to;
-            $subject = $this->subject;
-            $body = $this->body;
-            $headers = $this->headers;
-            $from = $this->from;
-        } catch (PSMailException $e) {
-            throw $e;
-        }
+        $toStr = $this->getTo($messageStr, true);
+        $to = $this->getTo($messageStr);
+        $from = $this->getFrom($messageStr);
+        $subject = $message->getSubject();
+        $endHeaders = strpos($messageStr, MessageInterface::LINE_SEPARATOR . MessageInterface::LINE_SEPARATOR);
+        $headers = substr($messageStr, 0, $endHeaders);
+        $body = substr($messageStr, $endHeaders + 4);
 
         foreach ($from as $address => $name) {
             $from_email = $address;
@@ -96,7 +43,7 @@ class SMTPTransport extends Transport implements TransportInterface
         $from_email = (isset($from_email) && !empty($from_email)) ? $from_email : $user;
 
         if (!($socket = fsockopen($smtp_host, $smtp_port, $errno, $errstr, 15))) {
-            throw new PSMailException("Error connecting to '$smtp_host' ($errno) ($errstr)");
+            return 0;
         }
 
         $this->serverParse($socket, '220');

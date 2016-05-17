@@ -45,14 +45,6 @@ class SwiftMessageAdapter extends Message implements MessageInterface
     }
 
     /**
-     * @return array
-     */
-    public function getAttach()
-    {
-
-    }
-
-    /**
      * Get the character set of this message.
      *
      * @return string
