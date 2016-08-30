@@ -5,8 +5,8 @@
     "homepage": "https://github.com/pyataks/sendmail",
     "authors": [
         {
-            "name": "pyatak_ss",
-            "email": "pyatak_ss@groupbwt.com"
+            "name": "Sergiy Pyatak",
+            "email": "sekretoff@gmail.com"
         }
     ],
     "autoload": {
